@@ -23,8 +23,9 @@ VALUE,DEBIT,CREDIT = range(3)
 dt = datetime.datetime.today()
 
 def start(bot, update):
-    response_message = '_My Finance Bot_  \n' \
+    response_message = ' MyBudget  \n' \
      'O bot para te ajudar no controle das finanças pessoais:  \n' \
+     ' Tenha controle em tempo real sobre suas despesas  \n' \
      'Centralize todas suas compras e tenha controle das suas despesas:  \n' \
      'Veja a lista de comandos abaixo:  \n' \
      '  \n' \
@@ -37,10 +38,7 @@ def start(bot, update):
     update.message.reply_text(response_message)
 
 def help(bot, update):
-    response_message = '_My Finance Bot_  \n' \
-     'O bot para te ajudar no controle das finanças pessoais:  \n' \
-     'Centralize todas suas compras e tenha controle das suas despesas:  \n' \
-     'Veja a lista de comandos abaixo:  \n' \
+    response_message = 'Veja a lista de comandos abaixo:  \n' \
      '  \n' \
      '/saldo - valor disponivel para o mes \n ' \
      '/resumo - diagnotico do mes  \n' \
@@ -70,8 +68,17 @@ def saldo(bot, update):
     bot.sendPhoto(
         chat_id=update.message.chat_id,
         photo=BASE_API_URL + "{type:'horizontalBar',data:{labels:['"+ str(dt.month)+'/'+str(dt.year) +"'], datasets:[{label:'Saldo',data:["+ str(saldo)+ "]},{label:'Meta',data:["+ str(meta)+ "]}]},options: {scales: {xAxes: [{ticks: {beginAtZero: true}}]}}}"
-        
     )
+    if(gasto > meta):
+        bot.send_message(
+        chat_id=update.message.chat_id,
+        text='Você infelizmente já perdeu a meta '
+        )
+    else:
+        bot.send_message(
+        chat_id=update.message.chat_id,
+        text='Parabéns!! Você se encontra dentro da meta. '
+        )
     
 def resumo(bot, update):
      meta,saldo,gasto,valueInCard,valueInDebit, percent = infoMes( update.message.from_user)
@@ -130,38 +137,8 @@ def estatistica(bot, update):
         text='Total Economizado R$'  + str(int(saldoMes1 + saldoMes2 + saldoMes3))
      )
 
-def inserirNovaCompra(user,newValue,newType):
-    documents = users.find_one({'Nome' : user.first_name})
-    compras = documents['Compras']
-    mes = compras[str(dt.month)+'/'+str(dt.year)]
-    valueInCard = float(mes['Cartao']) 
-    valueInDebit = float(mes['Debito']) 
-    logger.info(" %s",  valueInCard)
-    if newType == 'debito':
-        result = users.find_one_and_update(
-            {'Nome' : user.first_name}, {"$set":
-                {'Compras' : {
-                    { str(dt.month)+'/'+str(dt.year) :{
-                        'Cartao': str(valueInCard),
-                        'Debito': str(valueInDebit + float(valueInDebit))
-                    }
-                }} 
-            }}
-        )
-    else :
-        result = users.find_one_and_update(
-            {'Nome' : user.first_name}, {"$set":
-                {'Compras' : {
-                    { str(dt.month)+'/'+str(dt.year) :{
-                        'Cartao': str(valueInCard + float(valueInDebit)),
-                        'Debito': str(valueInDebit)
-                    }
-                }} 
-            }}
-        )
-
 def novacompra(bot, update):
-    reply_keyboard = [['debito', 'credito']]
+    reply_keyboard = [['Débito', 'Crédito']]
     response_message = ' Qual a forma de pagamento \n'
     update.message.reply_text(response_message,reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
     return VALUE
@@ -170,23 +147,51 @@ def valor( bot,update ):
     text = update.message.text
     response_message = ' Insira um valor, nesse formato: 000.00  \n'
     update.message.reply_text(response_message)
-    if text == 'debito':
+    if text == 'Débito':
         return DEBIT
-    if text == 'credito':
+    if text == 'Crédito':
         return CREDIT
 
 def debito(bot , update):
+    user = update.message.from_user
+    documents = users.find_one({'Nome' : user.first_name})
+    compras = documents['Compras']
+    mes = compras[str(dt.month)+'/'+str(dt.year)]
     text = update.message.text
     logger.info("Debit %s",  text)
-    inserirNovaCompra(update.message.from_user, text ,'Debito')
+    valueDebit = float(mes['Debito']) + float(text)
+    valueCard = float(mes['Cartao']) 
+    compras[str(dt.month)+'/'+str(dt.year)] = {
+        'Cartao': str(valueCard),
+        'Debito': str(valueDebit)
+    }
+    result = users.find_one_and_update(
+    {'_id' : documents['_id']}, {"$set":
+            {'Compras' : compras} 
+        }
+    )
     response_message = ' Valor Insido com sucesso!  \n'
     update.message.reply_text(response_message)
     return ConversationHandler.END
 
 def credito(bot , update):
+    user = update.message.from_user
+    documents = users.find_one({'Nome' : user.first_name})
+    compras = documents['Compras']
+    mes = compras[str(dt.month)+'/'+str(dt.year)]
     text = update.message.text
     logger.info("Credit %s",  text)
-    inserirNovaCompra(update.message.from_user, text ,'Credito')
+    valueDebit = float(mes['Debito']) 
+    valueCard = float(mes['Cartao']) + float(text)
+    compras[str(dt.month)+'/'+str(dt.year)] = {
+        'Cartao': str(valueCard),
+        'Debito': str(valueDebit)
+    }
+    result = users.find_one_and_update(
+    {'_id' : documents['_id']}, {"$set":
+            {'Compras' : compras} 
+        }
+    )
     response_message = ' Valor Insido com sucesso!  \n'
     update.message.reply_text(response_message)
     return ConversationHandler.END
