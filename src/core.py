@@ -19,8 +19,37 @@ users = db.user
 
 novoValor = ''
 novotipo=''
+NOVAMETA = range(1)
 VALUE,DEBIT,CREDIT = range(3)
 dt = datetime.datetime.today()
+
+def formatinput(value):
+    try:
+         float(value)
+    except ValueError:
+         return 'ERRO'
+    return value.replace(",",".")
+    
+def insertNewUser(userName):
+    insert = {
+            "Nome": userName,
+            "Meta": '500.00',
+            "Compras": {
+               str(dt.month-2)+'/'+str(dt.year):{
+                   "Cartao": "00.00",
+                   "Debito": '00.00'
+               } ,
+                str(dt.month-1)+'/'+str(dt.year):{
+                    "Cartao": "00.00",
+                    "Debito": '00.00'
+               } ,
+               str(dt.month)+'/'+str(dt.year):{
+                   "Cartao": "00.00",
+                    "Debito": '00.00'
+               } ,
+            }
+        }
+    return insert
 
 def start(bot, update):
     response_message = ' MyBudget  \n' \
@@ -36,6 +65,11 @@ def start(bot, update):
      '/novacompra - inserir nova compra   \n' \
 
     update.message.reply_text(response_message)
+
+    documents = users.find_one({'Nome' : update.message.from_user})
+    if documents == None:
+        user = insertNewUser(update.message.from_user)
+        users.insert_one(user)
 
 def help(bot, update):
     response_message = 'Veja a lista de comandos abaixo:  \n' \
@@ -105,7 +139,32 @@ def minhameta(bot, update):
     response_message = 'Sua meta mensal é: R$ '
     response_message += documents['Meta']
     update.message.reply_text(response_message)
+    bot.send_message(
+        chat_id=update.message.chat_id,
+        text='Caso deseje configurar a meta, utilize /configMeta'
+     )
 
+def configmeta(bot, update):
+    response_message = 'Insira o valor da sua nova meta: '
+    update.message.reply_text(response_message)
+    return NOVAMETA
+
+def novameta(bot, update):
+    text = formatinput(update.message.text)
+    if text == 'ERRO':
+        response_message = 'Erro ao inserir valor, reinicie a operação e digite neste formato: 000.00 '
+    else:
+        user = update.message.from_user
+        documents = users.find_one({'Nome' : user.first_name})
+        result = users.find_one_and_update(
+        {'_id' : documents['_id']}, {"$set":
+                {'Meta' : text} 
+            }
+        )
+        response_message = 'Meta atualizada!! '
+    update.message.reply_text(response_message)
+    return ConversationHandler.END
+    
 def infoEstat(user,mes,ano):
     documents = users.find_one({'Nome' : user.first_name})
     compras = documents['Compras']
@@ -145,7 +204,7 @@ def novacompra(bot, update):
 
 def valor( bot,update ):
     text = update.message.text
-    response_message = ' Insira um valor, nesse formato: 000.00  \n'
+    response_message = ' Insira o valor: \n'
     update.message.reply_text(response_message)
     if text == 'Débito':
         return DEBIT
@@ -153,46 +212,52 @@ def valor( bot,update ):
         return CREDIT
 
 def debito(bot , update):
-    user = update.message.from_user
-    documents = users.find_one({'Nome' : user.first_name})
-    compras = documents['Compras']
-    mes = compras[str(dt.month)+'/'+str(dt.year)]
-    text = update.message.text
-    logger.info("Debit %s",  text)
-    valueDebit = float(mes['Debito']) + float(text)
-    valueCard = float(mes['Cartao']) 
-    compras[str(dt.month)+'/'+str(dt.year)] = {
-        'Cartao': str(valueCard),
-        'Debito': str(valueDebit)
-    }
-    result = users.find_one_and_update(
-    {'_id' : documents['_id']}, {"$set":
-            {'Compras' : compras} 
+    text = formatinput(update.message.text)
+    if text == 'ERRO':
+        response_message = 'Erro ao inserir valor, reinicie a operação e digite neste formato: 000.00 '
+    else:
+        user = update.message.from_user
+        documents = users.find_one({'Nome' : user.first_name})
+        compras = documents['Compras']
+        mes = compras[str(dt.month)+'/'+str(dt.year)]
+        logger.info("Debit %s",  text)
+        valueDebit = float(mes['Debito']) + float(text)
+        valueCard = float(mes['Cartao']) 
+        compras[str(dt.month)+'/'+str(dt.year)] = {
+            'Cartao': str(valueCard),
+            'Debito': str(valueDebit)
         }
-    )
-    response_message = ' Valor Insido com sucesso!  \n'
+        result = users.find_one_and_update(
+        {'_id' : documents['_id']}, {"$set":
+                {'Compras' : compras} 
+            }
+        )
+        response_message = ' Valor Insido com sucesso!  \n'
     update.message.reply_text(response_message)
     return ConversationHandler.END
 
 def credito(bot , update):
-    user = update.message.from_user
-    documents = users.find_one({'Nome' : user.first_name})
-    compras = documents['Compras']
-    mes = compras[str(dt.month)+'/'+str(dt.year)]
-    text = update.message.text
-    logger.info("Credit %s",  text)
-    valueDebit = float(mes['Debito']) 
-    valueCard = float(mes['Cartao']) + float(text)
-    compras[str(dt.month)+'/'+str(dt.year)] = {
-        'Cartao': str(valueCard),
-        'Debito': str(valueDebit)
-    }
-    result = users.find_one_and_update(
-    {'_id' : documents['_id']}, {"$set":
-            {'Compras' : compras} 
+    text = formatinput(update.message.text)
+    if text == 'ERRO':
+        response_message = 'Erro ao inserir valor, reinicie a operação e digite neste formato: 000.00 '
+    else:
+        user = update.message.from_user
+        documents = users.find_one({'Nome' : user.first_name})
+        compras = documents['Compras']
+        mes = compras[str(dt.month)+'/'+str(dt.year)]
+        logger.info("Credit %s",  text)
+        valueDebit = float(mes['Debito']) 
+        valueCard = float(mes['Cartao']) + float(text)
+        compras[str(dt.month)+'/'+str(dt.year)] = {
+            'Cartao': str(valueCard),
+            'Debito': str(valueDebit)
         }
-    )
-    response_message = ' Valor Insido com sucesso!  \n'
+        result = users.find_one_and_update(
+        {'_id' : documents['_id']}, {"$set":
+                {'Compras' : compras} 
+            }
+        )
+        response_message = ' Valor Insido com sucesso!  \n'
     update.message.reply_text(response_message)
     return ConversationHandler.END
 
@@ -215,7 +280,16 @@ def main():
     dispatcher.add_handler(CommandHandler('resumo', resumo))
     dispatcher.add_handler(CommandHandler('minhaMeta', minhameta))
     dispatcher.add_handler(CommandHandler('estatistica', estatistica))
-    # dispatcher.add_handler(MessageHandler(Filters.command, unknown))
+    
+    config_Meta = ConversationHandler(
+        entry_points=[CommandHandler('configMeta', configmeta)],
+
+        states={
+            NOVAMETA: [MessageHandler(Filters.text , novameta)],
+        },
+
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
 
 
     conv_handler = ConversationHandler(
@@ -233,6 +307,7 @@ def main():
     )
 
     dispatcher.add_handler(conv_handler)
+    dispatcher.add_handler(config_Meta)
 
 
     updater.start_polling()
