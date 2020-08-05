@@ -65,10 +65,13 @@ def start(bot, update):
      '/novacompra - inserir nova compra   \n' \
 
     update.message.reply_text(response_message)
+    print(update.message.from_user)
+    newuser = str(update.message.from_user.first_name)
 
-    documents = users.find_one({'Nome' : update.message.from_user})
+    documents = users.find_one({'Nome' : newuser})
+    print(documents)
     if documents == None:
-        user = insertNewUser(update.message.from_user)
+        user = insertNewUser(newuser)
         users.insert_one(user)
 
 def help(bot, update):
@@ -189,11 +192,14 @@ def estatistica(bot, update):
     )
     bot.send_message(
         chat_id=update.message.chat_id,
-        text='Total Gasto R$'  + str (int(gastoMes1 + gastoMes2 + gastoMes3))
+        text='Total Gasto no periodo R$'  + str (int(gastoMes1 + gastoMes2 + gastoMes3))
      )
+    economizado = int(saldoMes1 + saldoMes2 + saldoMes3)
+    if economizado < 0 : 
+        economizado = 0 
     bot.send_message(
         chat_id=update.message.chat_id,
-        text='Total Economizado R$'  + str(int(saldoMes1 + saldoMes2 + saldoMes3))
+        text='Total Economizado no periodo R$'  + str(economizado)
      )
 
 def novacompra(bot, update):
